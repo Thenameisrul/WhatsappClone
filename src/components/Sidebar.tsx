@@ -1,4 +1,5 @@
-import { Lock, Search, Settings, SquarePen, Ban } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { Lock, Search, Settings, SquarePen, Ban, Trash2, MoreVertical } from 'lucide-react';
 import type { ConversationView } from '@/types';
 
 interface SidebarProps {
@@ -9,6 +10,7 @@ interface SidebarProps {
   onSearchChange: (value: string) => void;
   onOpenSettings: () => void;
   onNewChat: () => void;
+  onDeleteConversation: (id: string) => void;
 }
 
 export default function Sidebar({
@@ -19,10 +21,25 @@ export default function Sidebar({
   onSearchChange,
   onOpenSettings,
   onNewChat,
+  onDeleteConversation,
 }: SidebarProps) {
   const filtered = conversations.filter((c) =>
     c.userName.toLowerCase().includes(search.toLowerCase())
   );
+
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuId) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuId]);
 
   return (
     <aside className="w-full md:w-80 lg:w-96 flex flex-col bg-white border-r border-slate-200 h-full">
@@ -63,15 +80,16 @@ export default function Sidebar({
         ) : (
           filtered.map((c) => {
             const active = c.id === selectedId;
+            const menuOpen = menuId === c.id;
             return (
-              <button
+              <div
                 key={c.id}
-                onClick={() => onSelect(c.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${
+                className={`relative w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 cursor-pointer group ${
                   active
                     ? 'bg-blue-50 border-blue-500'
                     : 'border-transparent hover:bg-slate-50'
                 }`}
+                onClick={() => onSelect(c.id)}
               >
                 <div className="relative shrink-0">
                   <img
@@ -109,7 +127,41 @@ export default function Sidebar({
                     )}
                   </div>
                 </div>
-              </button>
+
+                {/* More menu button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuId(menuOpen ? null : c.id);
+                  }}
+                  className={`p-1.5 rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition shrink-0 ${
+                    menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                  title="More options"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+
+                {/* Dropdown menu */}
+                {menuOpen && (
+                  <div
+                    ref={menuRef}
+                    className="absolute right-2 top-12 z-20 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => {
+                        setMenuId(null);
+                        onDeleteConversation(c.id);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete chat
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })
         )}

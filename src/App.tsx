@@ -17,6 +17,7 @@ import {
   removeConversationLock,
   blockConversation,
   unblockConversation,
+  deleteConversation,
   createConversation,
   hashPin,
   sendCallSignal,
@@ -309,6 +310,19 @@ export default function App() {
     return offer.sdp?.includes('m=video') ? 'video' : 'audio';
   }, []);
 
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    try {
+      await deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (selectedIdRef.current === id) {
+        setSelectedId(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete conversation');
+    }
+  }, []);
+
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
     setMobileOpen(true);
@@ -559,6 +573,7 @@ export default function App() {
             onSearchChange={setSearch}
             onOpenSettings={() => setSettingsOpen(true)}
             onNewChat={() => setNewChatOpen(true)}
+            onDeleteConversation={handleDeleteConversation}
           />
         </div>
       </div>

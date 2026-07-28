@@ -244,6 +244,14 @@ export async function blockConversation(conversationId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', conversationId);
+  if (error) throw error;
+}
+
 export async function unblockConversation(conversationId: string): Promise<void> {
   const { error } = await supabase
     .from('conversations')
