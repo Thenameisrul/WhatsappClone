@@ -36,6 +36,8 @@ export interface Message {
   duration: number | null;
   file_name: string | null;
   file_size: number | null;
+  view_once: boolean | null;
+  viewed_at: string | null;
   created_at: string;
 }
 

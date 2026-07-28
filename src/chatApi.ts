@@ -36,7 +36,7 @@ function summarizeMessage(msg: Message | null): string {
 }
 
 const MESSAGE_FIELDS =
-  'id, conversation_id, sender_id, text, media_url, media_type, duration, file_name, file_size, created_at';
+  'id, conversation_id, sender_id, text, media_url, media_type, duration, file_name, file_size, view_once, viewed_at, created_at';
 
 export async function fetchConversations(): Promise<ConversationView[]> {
   const { data, error } = await supabase
@@ -95,7 +95,8 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
 
 export async function sendTextMessage(
   conversationId: string,
-  text: string
+  text: string,
+  viewOnce = false
 ): Promise<Message> {
   const { data: userData } = await supabase.auth.getUser();
   const senderId = userData.user?.id;
@@ -107,6 +108,7 @@ export async function sendTextMessage(
       conversation_id: conversationId,
       sender_id: senderId,
       text,
+      view_once: viewOnce,
     })
     .select(MESSAGE_FIELDS)
     .single();
@@ -178,7 +180,8 @@ export async function sendMediaMessage(
   conversationId: string,
   file: File,
   mediaType: MediaType,
-  caption?: string
+  caption?: string,
+  viewOnce = false
 ): Promise<Message> {
   const { url, duration } = await uploadMedia(file, mediaType);
 
@@ -198,6 +201,7 @@ export async function sendMediaMessage(
       duration,
       file_name: isFile ? file.name : null,
       file_size: isFile ? file.size : null,
+      view_once: viewOnce,
     })
     .select(MESSAGE_FIELDS)
     .single();
@@ -249,6 +253,15 @@ export async function deleteConversation(conversationId: string): Promise<void> 
     .from('conversations')
     .delete()
     .eq('id', conversationId);
+  if (error) throw error;
+}
+
+export async function markMessageViewed(messageId: string): Promise<void> {
+  const { error } = await supabase
+    .from('messages')
+    .update({ viewed_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .is('viewed_at', null);
   if (error) throw error;
 }
 

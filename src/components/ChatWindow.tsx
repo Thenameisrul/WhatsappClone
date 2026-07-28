@@ -16,6 +16,8 @@ import {
   FileText,
   Download,
   Trash2,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import type { ConversationView, Message, CallMode } from '@/types';
 import { formatMessageTime } from '@/chatApi';
@@ -38,6 +40,7 @@ interface ChatWindowProps {
   onBlock: (conversationId: string) => void;
   onUnblock: (conversationId: string) => void;
   onDeleteMessage: (messageId: string) => void;
+  onMarkViewed: (messageId: string) => void;
 }
 
 export default function ChatWindow({
@@ -56,6 +59,7 @@ export default function ChatWindow({
   onBlock,
   onUnblock,
   onDeleteMessage,
+  onMarkViewed,
 }: ChatWindowProps) {
   const [draft, setDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -64,6 +68,7 @@ export default function ChatWindow({
   const [preview, setPreview] = useState<string | null>(null);
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
+  const [viewOnce, setViewOnce] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -109,27 +114,28 @@ export default function ChatWindow({
   const handleSendText = () => {
     const text = draft.trim();
     if (!text) return;
-    onSendText(text);
+    onSendText(text, viewOnce);
     setDraft('');
+    setViewOnce(false);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onSendMedia(file, 'image');
+    if (file) onSendMedia(file, 'image', undefined, viewOnce);
     e.target.value = '';
     setAttachOpen(false);
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onSendMedia(file, 'video');
+    if (file) onSendMedia(file, 'video', undefined, viewOnce);
     e.target.value = '';
     setAttachOpen(false);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onSendMedia(file, 'file');
+    if (file) onSendMedia(file, 'file', undefined, viewOnce);
     e.target.value = '';
     setAttachOpen(false);
   };
@@ -142,7 +148,7 @@ export default function ChatWindow({
   };
 
   const handleVoiceSend = (file: File, duration: number) => {
-    onSendMedia(file, 'audio', duration);
+    onSendMedia(file, 'audio', duration, viewOnce);
     setRecording(false);
   };
 
@@ -319,6 +325,9 @@ export default function ChatWindow({
             ) : (
               messages.map((m) => {
                 const mine = m.sender_id === currentUserId;
+                const isViewOnce = m.view_once === true;
+                const isUnviewed = isViewOnce && !m.viewed_at;
+                const isIncomingViewOnce = isViewOnce && !mine && isUnviewed;
                 return (
                   <div
                     key={m.id}
@@ -327,6 +336,19 @@ export default function ChatWindow({
                     onMouseLeave={() => setHoveredMsg(null)}
                   >
                     <div className="relative max-w-[75%]">
+                      {isIncomingViewOnce ? (
+                        <button
+                          onClick={() => onMarkViewed(m.id)}
+                          className={`px-4 py-3 rounded-2xl flex items-center gap-2.5 ${
+                            mine
+                              ? 'bg-blue-500 text-white rounded-br-md'
+                              : 'bg-white text-slate-700 border border-slate-200 rounded-bl-md'
+                          }`}
+                        >
+                          <EyeOff className="w-4 h-4 opacity-70" />
+                          <span className="text-sm font-medium">View-once message — tap to view</span>
+                        </button>
+                      ) : (
                       <div
                         className={`px-4 py-2.5 rounded-2xl ${
                           mine
@@ -392,14 +414,20 @@ export default function ChatWindow({
                             {m.text}
                           </p>
                         )}
-                        <p
-                          className={`text-[10px] mt-1 ${
-                            mine ? 'text-blue-100' : 'text-slate-400'
-                          }`}
-                        >
-                          {formatMessageTime(m.created_at)}
-                        </p>
+                        <div className="flex items-center gap-1 mt-1">
+                          {isViewOnce && (
+                            <EyeOff className={`w-3 h-3 ${mine ? 'text-blue-100' : 'text-slate-400'}`} />
+                          )}
+                          <p
+                            className={`text-[10px] ${
+                              mine ? 'text-blue-100' : 'text-slate-400'
+                            }`}
+                          >
+                            {formatMessageTime(m.created_at)}
+                          </p>
+                        </div>
                       </div>
+                      )}
 
                       {/* Per-message delete button */}
                       {mine && (hoveredMsg === m.id || msgMenuId === m.id) && (
@@ -516,6 +544,17 @@ export default function ChatWindow({
                   placeholder="Type a message..."
                   className="flex-1 px-4 py-2.5 text-sm rounded-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:outline-none transition"
                 />
+                <button
+                  onClick={() => setViewOnce((v) => !v)}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition ${
+                    viewOnce
+                      ? 'bg-blue-100 text-blue-600'
+                      : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                  title={viewOnce ? 'View-once ON — message deletes after viewing' : 'Send as view-once'}
+                >
+                  {viewOnce ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
                 <button
                   onClick={() => setRecording(true)}
                   className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 transition"

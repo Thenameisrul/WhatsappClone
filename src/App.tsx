@@ -19,6 +19,7 @@ import {
   unblockConversation,
   deleteConversation,
   deleteMessage,
+  markMessageViewed,
   createConversation,
   hashPin,
   sendCallSignal,
@@ -333,6 +334,14 @@ export default function App() {
     }
   }, []);
 
+  const handleMarkViewed = useCallback(async (messageId: string) => {
+    try {
+      await markMessageViewed(messageId);
+    } catch {
+      // ignore — the realtime DELETE will still remove it
+    }
+  }, []);
+
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     try {
       await deleteMessage(messageId);
@@ -352,9 +361,9 @@ export default function App() {
   }, []);
 
   const handleSendText = useCallback(
-    (text: string) => {
+    (text: string, viewOnce = false) => {
       if (!selectedId) return;
-      sendTextMessage(selectedId, text)
+      sendTextMessage(selectedId, text, viewOnce)
         .then((msg) => {
           setMessages((prev) => [...prev, msg]);
           setConversations((prev) => {
@@ -381,9 +390,9 @@ export default function App() {
   );
 
   const handleSendMedia = useCallback(
-    (file: File, type: 'image' | 'video' | 'audio' | 'file', duration?: number) => {
+    (file: File, type: 'image' | 'video' | 'audio' | 'file', duration?: number, viewOnce = false) => {
       if (!selectedId) return;
-      sendMediaMessage(selectedId, file, type)
+      sendMediaMessage(selectedId, file, type, undefined, viewOnce)
         .then((msg) => {
           setMessages((prev) => [...prev, msg]);
           const preview =
@@ -613,6 +622,7 @@ export default function App() {
           onBlock={handleBlock}
           onUnblock={handleUnblock}
           onDeleteMessage={handleDeleteMessage}
+          onMarkViewed={handleMarkViewed}
         />
       </div>
 
