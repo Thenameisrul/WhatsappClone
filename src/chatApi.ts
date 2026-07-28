@@ -252,6 +252,14 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   if (error) throw error;
 }
 
+export async function deleteMessage(messageId: string): Promise<void> {
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .eq('id', messageId);
+  if (error) throw error;
+}
+
 export async function unblockConversation(conversationId: string): Promise<void> {
   const { error } = await supabase
     .from('conversations')
@@ -372,7 +380,8 @@ export function subscribeToCallSignals(
 
 export function subscribeToMessages(
   conversationId: string,
-  onMessage: (message: Message) => void
+  onMessage: (message: Message) => void,
+  onDelete: (messageId: string) => void
 ) {
   return supabase
     .channel(`messages:conversation_id=eq.${conversationId}`)
@@ -380,6 +389,13 @@ export function subscribeToMessages(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
       (payload) => onMessage(payload.new as Message)
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+      (payload) => {
+        if (payload.old?.id) onDelete(payload.old.id as string);
+      }
     )
     .subscribe();
 }

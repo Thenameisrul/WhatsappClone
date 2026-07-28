@@ -15,6 +15,7 @@ import {
   ShieldOff,
   FileText,
   Download,
+  Trash2,
 } from 'lucide-react';
 import type { ConversationView, Message, CallMode } from '@/types';
 import { formatMessageTime } from '@/chatApi';
@@ -36,6 +37,7 @@ interface ChatWindowProps {
   onStartCall: (mode: CallMode) => void;
   onBlock: (conversationId: string) => void;
   onUnblock: (conversationId: string) => void;
+  onDeleteMessage: (messageId: string) => void;
 }
 
 export default function ChatWindow({
@@ -53,16 +55,20 @@ export default function ChatWindow({
   onStartCall,
   onBlock,
   onUnblock,
+  onDeleteMessage,
 }: ChatWindowProps) {
   const [draft, setDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
+  const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const msgMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -72,7 +78,19 @@ export default function ChatWindow({
     setMenuOpen(false);
     setAttachOpen(false);
     setRecording(false);
+    setMsgMenuId(null);
   }, [conversation?.id]);
+
+  useEffect(() => {
+    if (!msgMenuId) return;
+    const handler = (e: MouseEvent) => {
+      if (msgMenuRef.current && !msgMenuRef.current.contains(e.target as Node)) {
+        setMsgMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [msgMenuId]);
 
   if (!conversation) {
     return (
@@ -304,80 +322,122 @@ export default function ChatWindow({
                 return (
                   <div
                     key={m.id}
-                    className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+                    className={`group/msg flex ${mine ? 'justify-end' : 'justify-start'}`}
+                    onMouseEnter={() => setHoveredMsg(m.id)}
+                    onMouseLeave={() => setHoveredMsg(null)}
                   >
-                    <div
-                      className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${
-                        mine
-                          ? 'bg-blue-500 text-white rounded-br-md'
-                          : 'bg-white text-slate-700 border border-slate-200 rounded-bl-md'
-                      }`}
-                    >
-                      {m.media_type === 'image' && m.media_url && (
-                        <button onClick={() => setPreview(m.media_url)} className="block mb-1">
-                          <img
-                            src={m.media_url}
-                            alt="Photo"
-                            className="rounded-xl max-w-full max-h-60 object-cover"
-                          />
-                        </button>
-                      )}
-                      {m.media_type === 'video' && m.media_url && (
-                        <video
-                          src={m.media_url}
-                          controls
-                          className="rounded-xl max-w-full max-h-60"
-                        />
-                      )}
-                      {m.media_type === 'audio' && m.media_url && (
-                        <AudioPlayer src={m.media_url} duration={m.duration} mine={mine} />
-                      )}
-                      {m.media_type === 'file' && m.media_url && (
-                        <a
-                          href={m.media_url}
-                          download={m.file_name ?? undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`flex items-center gap-3 p-3 rounded-xl mb-1 transition ${
-                            mine
-                              ? 'bg-blue-600/20 hover:bg-blue-600/30'
-                              : 'bg-slate-50 hover:bg-slate-100'
-                          }`}
-                        >
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                            mine ? 'bg-blue-500/30' : 'bg-slate-200'
-                          }`}>
-                            <FileText className={`w-5 h-5 ${mine ? 'text-blue-100' : 'text-slate-500'}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${
-                              mine ? 'text-white' : 'text-slate-700'
-                            }`}>
-                              {m.file_name ?? 'File'}
-                            </p>
-                            {m.file_size != null && (
-                              <p className={`text-xs ${mine ? 'text-blue-100' : 'text-slate-400'}`}>
-                                {formatFileSize(m.file_size)}
-                              </p>
-                            )}
-                          </div>
-                          <Download className={`w-4 h-4 shrink-0 ${
-                            mine ? 'text-blue-100' : 'text-slate-400'
-                          }`} />
-                        </a>
-                      )}
-                      {m.text && (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                          {m.text}
-                        </p>
-                      )}
-                      <p
-                        className={`text-[10px] mt-1 ${
-                          mine ? 'text-blue-100' : 'text-slate-400'
+                    <div className="relative max-w-[75%]">
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl ${
+                          mine
+                            ? 'bg-blue-500 text-white rounded-br-md'
+                            : 'bg-white text-slate-700 border border-slate-200 rounded-bl-md'
                         }`}
                       >
-                        {formatMessageTime(m.created_at)}
-                      </p>
+                        {m.media_type === 'image' && m.media_url && (
+                          <button onClick={() => setPreview(m.media_url!)} className="block mb-1">
+                            <img
+                              src={m.media_url}
+                              alt="Photo"
+                              className="rounded-xl max-w-full max-h-60 object-cover"
+                            />
+                          </button>
+                        )}
+                        {m.media_type === 'video' && m.media_url && (
+                          <video
+                            src={m.media_url}
+                            controls
+                            className="rounded-xl max-w-full max-h-60"
+                          />
+                        )}
+                        {m.media_type === 'audio' && m.media_url && (
+                          <AudioPlayer src={m.media_url} duration={m.duration} mine={mine} />
+                        )}
+                        {m.media_type === 'file' && m.media_url && (
+                          <a
+                            href={m.media_url}
+                            download={m.file_name ?? undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-3 p-3 rounded-xl mb-1 transition ${
+                              mine
+                                ? 'bg-blue-600/20 hover:bg-blue-600/30'
+                                : 'bg-slate-50 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                              mine ? 'bg-blue-500/30' : 'bg-slate-200'
+                            }`}>
+                              <FileText className={`w-5 h-5 ${mine ? 'text-blue-100' : 'text-slate-500'}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium truncate ${
+                                mine ? 'text-white' : 'text-slate-700'
+                              }`}>
+                                {m.file_name ?? 'File'}
+                              </p>
+                              {m.file_size != null && (
+                                <p className={`text-xs ${mine ? 'text-blue-100' : 'text-slate-400'}`}>
+                                  {formatFileSize(m.file_size)}
+                                </p>
+                              )}
+                            </div>
+                            <Download className={`w-4 h-4 shrink-0 ${
+                              mine ? 'text-blue-100' : 'text-slate-400'
+                            }`} />
+                          </a>
+                        )}
+                        {m.text && (
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                            {m.text}
+                          </p>
+                        )}
+                        <p
+                          className={`text-[10px] mt-1 ${
+                            mine ? 'text-blue-100' : 'text-slate-400'
+                          }`}
+                        >
+                          {formatMessageTime(m.created_at)}
+                        </p>
+                      </div>
+
+                      {/* Per-message delete button */}
+                      {mine && (hoveredMsg === m.id || msgMenuId === m.id) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMsgMenuId(msgMenuId === m.id ? null : m.id);
+                          }}
+                          className={`absolute -top-2 ${
+                            mine ? 'right-0' : 'left-0'
+                          } w-7 h-7 flex items-center justify-center rounded-full bg-white shadow-md border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 transition z-10`}
+                          title="Delete message"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Delete confirmation dropdown */}
+                      {msgMenuId === m.id && (
+                        <div
+                          ref={msgMenuRef}
+                          className={`absolute top-6 ${
+                            mine ? 'right-0' : 'left-0'
+                          } z-20 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => {
+                              setMsgMenuId(null);
+                              onDeleteMessage(m.id);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete message
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

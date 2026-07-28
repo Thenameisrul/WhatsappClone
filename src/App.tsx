@@ -18,6 +18,7 @@ import {
   blockConversation,
   unblockConversation,
   deleteConversation,
+  deleteMessage,
   createConversation,
   hashPin,
   sendCallSignal,
@@ -172,6 +173,15 @@ export default function App() {
           });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedId}` },
+        (payload) => {
+          const oldId = payload.old?.id as string | undefined;
+          if (!oldId) return;
+          setMessages((prev) => prev.filter((m) => m.id !== oldId));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -320,6 +330,15 @@ export default function App() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete conversation');
+    }
+  }, []);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    try {
+      await deleteMessage(messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete message');
     }
   }, []);
 
@@ -593,6 +612,7 @@ export default function App() {
           onStartCall={handleStartCall}
           onBlock={handleBlock}
           onUnblock={handleUnblock}
+          onDeleteMessage={handleDeleteMessage}
         />
       </div>
 
