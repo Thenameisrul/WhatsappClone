@@ -310,6 +310,26 @@ export async function fetchAvailableContacts(): Promise<AvailableContact[]> {
   return (data ?? []).filter((u) => !existingIds.has(u.id)) as AvailableContact[];
 }
 
+export async function findUserByUsername(username: string): Promise<AvailableContact | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const myId = userData.user?.id;
+  if (!myId) throw new Error('Not authenticated');
+
+  const clean = username.trim().toLowerCase();
+  if (!clean) return null;
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, avatar_url, online, username')
+    .ilike('username', clean)
+    .neq('id', myId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return data as AvailableContact;
+}
+
 export async function createConversation(contactId: string): Promise<string> {
   const { data: userData } = await supabase.auth.getUser();
   const myId = userData.user?.id;
