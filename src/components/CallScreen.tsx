@@ -12,6 +12,7 @@ import {
 import type { CallMode, CallSignal } from '@/types';
 import { sendCallSignal, deleteCallSignal } from '@/chatApi';
 import { supabase } from '@/supabaseClient';
+import { playCallSound, stopCallSound } from '@/notificationSound';
 
 interface CallScreenProps {
   mode: CallMode;
@@ -228,6 +229,16 @@ export default function CallScreen({
     const id = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, [status]);
+
+  // Ringback tone for outgoing calls — plays while ringing, stops when connected
+  useEffect(() => {
+    if (direction === 'outgoing' && status === 'ringing') {
+      playCallSound();
+    } else {
+      stopCallSound();
+    }
+    return () => stopCallSound();
+  }, [direction, status]);
 
   const toggleMute = () => {
     const stream = streamRef.current;

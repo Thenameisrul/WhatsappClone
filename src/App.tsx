@@ -26,7 +26,7 @@ import {
   deleteCallSignal,
 } from '@/chatApi';
 import { supabase } from '@/supabaseClient';
-import { playMessageSound, playCallSound, unlockAudio } from '@/notificationSound';
+import { playMessageSound, playCallSound, stopCallSound, unlockAudio } from '@/notificationSound';
 import type { ConversationView, Message, CallMode, CallSignal } from '@/types';
 
 type PinMode = 'set' | 'enter' | 'remove';
@@ -71,6 +71,10 @@ export default function App() {
   conversationsRef.current = conversations;
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
+  const incomingCallRef = useRef<IncomingCall | null>(null);
+  incomingCallRef.current = incomingCall;
+  const activeCallRef = useRef<ActiveCall | null>(null);
+  activeCallRef.current = activeCall;
 
   useEffect(() => {
     let cancelled = false;
@@ -269,34 +273,40 @@ export default function App() {
         async (payload) => {
           const signal = payload.new as CallSignal;
           if (signal.sender_id === currentUserId) return; // ignore our own
-          if (signal.type !== 'offer') return; // only offers trigger incoming call UI
 
-          // Play the call ringtone
-          playCallSound();
-
-          // Find the conversation this signal belongs to
-          const convo = conversationsRef.current.find((c) => c.pairId === signal.pairId);
-          if (!convo) {
-            // Conversation may not be loaded yet; reload then check
-            await loadConversations();
-            const updated = conversationsRef.current.find((c) => c.pairId === signal.pairId);
-            if (!updated) return;
-            const offerPayload2 = signal.payload as unknown as RTCSessionDescriptionInit;
-            if (!offerPayload2) return;
-            setIncomingCall({
-              signalId: signal.id,
-              pairId: signal.pairId,
-              senderId: signal.sender_id,
-              contactName: updated.userName,
-              contactAvatar: updated.avatarUrl,
-              mode: detectCallMode(offerPayload2),
-              offer: offerPayload2,
-            });
+          // Handle hangup/reject while ringing — caller cancelled before answer
+          if (signal.type === 'hangup' || signal.type === 'reject') {
+            if (incomingCallRef.current && incomingCallRef.current.pairId === signal.pairId) {
+              stopCallSound();
+              setIncomingCall(null);
+            }
+            deleteCallSignal(signal.id).catch(() => {});
             return;
           }
 
+          if (signal.type !== 'offer') return; // only offers trigger incoming call UI
+          if (activeCallRef.current) return; // already in a call, ignore new offers
+
+          // Play the repeating call ringtone
+          playCallSound();
+
+          // Find the conversation this signal belongs to
+          let convo = conversationsRef.current.find((c) => c.pairId === signal.pairId);
+          if (!convo) {
+            // Conversation may not be loaded yet; reload then check
+            await loadConversations();
+            convo = conversationsRef.current.find((c) => c.pairId === signal.pairId);
+            if (!convo) {
+              stopCallSound();
+              return;
+            }
+          }
+
           const offerPayload = signal.payload as unknown as RTCSessionDescriptionInit;
-          if (!offerPayload) return;
+          if (!offerPayload) {
+            stopCallSound();
+            return;
+          }
 
           setIncomingCall({
             signalId: signal.id,
@@ -455,6 +465,7 @@ export default function App() {
       initialOffer: incomingCall.offer,
     });
     deleteCallSignal(incomingCall.signalId).catch(() => {});
+    stopCallSound();
     setIncomingCall(null);
   }, [incomingCall]);
 
@@ -462,10 +473,12 @@ export default function App() {
     if (!incomingCall) return;
     sendCallSignal(incomingCall.pairId, 'reject', null).catch(() => {});
     deleteCallSignal(incomingCall.signalId).catch(() => {});
+    stopCallSound();
     setIncomingCall(null);
   }, [incomingCall]);
 
   const handleEndCall = useCallback(() => {
+    stopCallSound();
     setActiveCall(null);
   }, []);
 

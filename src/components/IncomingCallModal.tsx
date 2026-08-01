@@ -20,12 +20,13 @@ export default function IncomingCallModal({
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="flex flex-col items-center px-6 pt-8 pb-6">
           <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-green-500/30 animate-ping" />
             <img
               src={contactAvatar}
               alt={contactName}
-              className="w-24 h-24 rounded-full object-cover ring-2 ring-slate-100"
+              className="relative w-24 h-24 rounded-full object-cover ring-2 ring-slate-100"
             />
-            <div className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-green-500 flex items-center justify-center ring-4 ring-white animate-pulse">
+            <div className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-green-500 flex items-center justify-center ring-4 ring-white">
               {mode === 'video' ? (
                 <Video className="w-4 h-4 text-white" />
               ) : (

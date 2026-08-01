@@ -1,6 +1,6 @@
 // Notification sounds generated with the Web Audio API so no audio
 // files need to be bundled. Two distinct tones: a short "pop" for text
-// messages and a ringing pattern for incoming calls.
+// messages and a repeating ringtone for incoming calls.
 
 let audioCtx: AudioContext | null = null;
 
@@ -39,12 +39,33 @@ export function playMessageSound() {
   playTone(1320, 0.08, 0.14);
 }
 
-// Ringing pattern (repeats twice) for incoming calls
-export function playCallSound() {
-  playTone(440, 0, 0.4, 0.2);
-  playTone(550, 0, 0.4, 0.2);
-  playTone(440, 0.5, 0.4, 0.2);
-  playTone(550, 0.5, 0.4, 0.2);
+// --- Repeating ringtone for calls ---
+let callRingTimer: ReturnType<typeof setTimeout> | null = null;
+let callRingStopped = false;
+
+export function playCallSound(): void {
+  stopCallSound();
+  callRingStopped = false;
+
+  const playRingCycle = () => {
+    if (callRingStopped) return;
+    // Two-tone "beep beep" ring, then pause, then repeat
+    playTone(440, 0, 0.4, 0.22);
+    playTone(550, 0, 0.4, 0.22);
+    playTone(440, 0.5, 0.4, 0.22);
+    playTone(550, 0.5, 0.4, 0.22);
+    callRingTimer = setTimeout(playRingCycle, 2000);
+  };
+
+  playRingCycle();
+}
+
+export function stopCallSound(): void {
+  callRingStopped = true;
+  if (callRingTimer) {
+    clearTimeout(callRingTimer);
+    callRingTimer = null;
+  }
 }
 
 // Ensure the AudioContext is unlocked after a user gesture (browsers
