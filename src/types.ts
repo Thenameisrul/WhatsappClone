@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   name: string;
+  username: string | null;
   avatar_url: string | null;
   bio: string | null;
   online: boolean;
@@ -10,6 +11,7 @@ export interface User {
 export interface Profile {
   id: string;
   name: string;
+  username: string | null;
   avatarUrl: string | null;
   bio: string | null;
 }

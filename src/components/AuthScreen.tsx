@@ -1,18 +1,19 @@
 import { useState, useRef } from 'react';
-import { MessageSquare, Mail, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Mail, ArrowLeft, AtSign, KeyRound } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
 
 interface AuthScreenProps {
   onAuthed: () => void;
 }
 
-type Stage = 'credentials' | 'otp';
+type Stage = 'credentials' | 'otp' | 'forgot';
 
 export default function AuthScreen({ onAuthed }: AuthScreenProps) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [stage, setStage] = useState<Stage>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,17 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (cleanUsername.length < 3) {
+          setError('Username must be at least 3 characters (letters, numbers, underscores).');
+          setLoading(false);
+          return;
+        }
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { username: cleanUsername } },
+        });
         if (error) throw error;
         if (data.session) {
           onAuthed();
@@ -109,6 +120,24 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      setInfo('We sent a password reset link to your email. Click the link in the email to set a new password.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send reset email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetToCredentials = () => {
     setStage('credentials');
     setOtp(['', '', '', '', '', '']);
@@ -131,6 +160,8 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
           <h1 className="text-2xl font-semibold text-slate-800">
             {stage === 'otp'
               ? 'Verify your email'
+              : stage === 'forgot'
+              ? 'Reset password'
               : mode === 'signin'
               ? 'Welcome back'
               : 'Create your account'}
@@ -138,6 +169,8 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
           <p className="text-sm text-slate-500 mt-1">
             {stage === 'otp'
               ? 'Enter the code we sent to your email'
+              : stage === 'forgot'
+              ? 'Enter your email to receive a reset link'
               : mode === 'signin'
               ? 'Sign in to continue to your messages'
               : 'Sign up to start chatting'}
@@ -160,6 +193,28 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
                   className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
                 />
               </div>
+
+              {mode === 'signup' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                      minLength={3}
+                      placeholder="choose a handle"
+                      className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-lg bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Letters, numbers, and underscores. At least 3 characters.</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   Password
@@ -192,8 +247,24 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
                   ? 'Sign in'
                   : 'Create account'}
               </button>
+
+              {mode === 'signin' && (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStage('forgot');
+                      setError(null);
+                      setInfo(null);
+                    }}
+                    className="text-sm text-slate-500 hover:text-blue-600 transition"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
             </form>
-          ) : (
+          ) : stage === 'otp' ? (
             <form onSubmit={handleOtpSubmit} className="space-y-5">
               <div className="flex justify-center mb-2">
                 <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
@@ -255,6 +326,57 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
                   Resend code
                 </button>
               </div>
+            </form>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="flex justify-center mb-2">
+                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
+                  <KeyRound className="w-6 h-6 text-blue-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="you@example.com"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                />
+              </div>
+
+              {info && (
+                <p className="text-sm text-slate-600 text-center bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  {info}
+                </p>
+              )}
+
+              {error && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {loading ? 'Sending...' : 'Send reset link'}
+              </button>
+
+              <button
+                type="button"
+                onClick={resetToCredentials}
+                className="w-full flex items-center justify-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to sign in
+              </button>
             </form>
           )}
 

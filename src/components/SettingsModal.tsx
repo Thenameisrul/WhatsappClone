@@ -6,9 +6,10 @@ import {
   LogOut,
   Loader2,
   Check,
+  AtSign,
 } from 'lucide-react';
 import type { Profile } from '@/types';
-import { fetchProfile, updateProfile, uploadAvatar } from '@/chatApi';
+import { fetchProfile, updateProfile, uploadAvatar, checkUsernameAvailable } from '@/chatApi';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -18,6 +19,7 @@ interface SettingsModalProps {
 export default function SettingsModal({ onClose, onSignOut }: SettingsModalProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,7 @@ export default function SettingsModal({ onClose, onSignOut }: SettingsModalProps
         if (p) {
           setProfile(p);
           setName(p.name);
+          setUsername(p.username ?? '');
           setBio(p.bio ?? '');
           setAvatarUrl(p.avatarUrl);
         }
@@ -73,8 +76,26 @@ export default function SettingsModal({ onClose, onSignOut }: SettingsModalProps
     setError(null);
     setSaving(true);
     try {
-      await updateProfile({ name: name.trim() || undefined, bio: bio.trim() || null });
-      setProfile((p) => (p ? { ...p, name: name.trim(), bio: bio.trim() } : p));
+      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (cleanUsername && cleanUsername.length < 3) {
+        setError('Username must be at least 3 characters.');
+        setSaving(false);
+        return;
+      }
+      if (cleanUsername && cleanUsername !== (profile?.username ?? '')) {
+        const available = await checkUsernameAvailable(cleanUsername);
+        if (!available) {
+          setError('That username is already taken.');
+          setSaving(false);
+          return;
+        }
+      }
+      await updateProfile({
+        name: name.trim() || undefined,
+        bio: bio.trim() || null,
+        username: cleanUsername || null,
+      });
+      setProfile((p) => (p ? { ...p, name: name.trim(), bio: bio.trim(), username: cleanUsername || null } : p));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -144,6 +165,21 @@ export default function SettingsModal({ onClose, onSignOut }: SettingsModalProps
                 placeholder="Your name"
                 className="w-full px-3.5 py-2.5 text-sm rounded-lg bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
               />
+            </div>
+
+            {/* Username */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+              <div className="relative">
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="choose a handle"
+                  className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-lg bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                />
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Letters, numbers, and underscores. Leave empty to remove.</p>
             </div>
 
             {/* Bio */}

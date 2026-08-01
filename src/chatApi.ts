@@ -413,6 +413,21 @@ export function subscribeToMessages(
     .subscribe();
 }
 
+export async function checkUsernameAvailable(username: string): Promise<boolean> {
+  const { data: userData } = await supabase.auth.getUser();
+  const myId = userData.user?.id;
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id')
+    .ilike('username', username)
+    .neq('id', myId ?? '')
+    .maybeSingle();
+
+  if (error) throw error;
+  return !data;
+}
+
 export async function fetchProfile(): Promise<Profile | null> {
   const { data: userData } = await supabase.auth.getUser();
   const id = userData.user?.id;
@@ -420,7 +435,7 @@ export async function fetchProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, avatar_url, bio')
+    .select('id, name, avatar_url, bio, username')
     .eq('id', id)
     .maybeSingle();
 
@@ -429,13 +444,14 @@ export async function fetchProfile(): Promise<Profile | null> {
   return {
     id: data.id,
     name: data.name,
+    username: data.username,
     avatarUrl: data.avatar_url,
     bio: data.bio,
   };
 }
 
 export async function updateProfile(
-  updates: { name?: string; bio?: string | null; avatarUrl?: string | null }
+  updates: { name?: string; bio?: string | null; avatarUrl?: string | null; username?: string | null }
 ): Promise<void> {
   const { data: userData } = await supabase.auth.getUser();
   const id = userData.user?.id;
@@ -445,6 +461,7 @@ export async function updateProfile(
   if (updates.name !== undefined) patch.name = updates.name;
   if (updates.bio !== undefined) patch.bio = updates.bio;
   if (updates.avatarUrl !== undefined) patch.avatar_url = updates.avatarUrl;
+  if (updates.username !== undefined) patch.username = updates.username || null;
 
   const { error } = await supabase.from('users').update(patch).eq('id', id);
   if (error) throw error;
