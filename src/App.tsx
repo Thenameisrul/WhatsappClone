@@ -95,14 +95,17 @@ export default function App() {
     };
   }, []);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (): Promise<ConversationView[]> => {
     try {
       setLoading(true);
       const convos = await fetchConversations();
+      conversationsRef.current = convos;
       setConversations(convos);
       if (convos.length > 0 && !selectedIdRef.current) setSelectedId(convos[0].id);
+      return convos;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load conversations');
+      return [];
     } finally {
       setLoading(false);
     }
